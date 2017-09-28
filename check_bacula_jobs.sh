@@ -1,12 +1,26 @@
 #!/bin/bash
 
-JOBTYPES=$(echo "list jobtotals" | bconsole | grep -e '^|' | sed -e 's/|/\t/g' | sed 1d | awk ' { print $4 } ' | grep -v -e '^$')
+if [ $# -eq 1 ]; then
+   jobname="$1"
+else
+   jobname="."
+fi
+
+JOBDISABLED=$(echo "show job" | bconsole | grep '^Job: name=' | grep 'Enabled=0$' |awk '{print substr($2,6)}')
+JOBENABLED=$(echo "show job" | bconsole | grep '^Job: name=' | grep 'Enabled=1$' |awk '{print substr($2,6)}')
+JOBTYPES=$(echo "list jobtotals" | bconsole | grep -e '^|' | sed -e 's/|/\t/g' | sed 1d | awk ' { print $4 } ' |grep -e "^$jobname" | grep -v -e '^$')
 NOW=$(date +%s)
 WARN=$((2*86400))
 CRIT=$((7*86400))
 LEVEL=0
 for job in $JOBTYPES; do
-	LASTRUN=$(echo 'list jobs' | bconsole | grep -e '^|' | sed 1d | grep '| T ' | sed -e 's/|/\t/g' |grep $job | tail -n 1 | awk ' { print $3" "$4 } ')
+	if [[ $JOBDISABLED == *$job* ]]; then
+		continue;
+	fi
+	if [[ $JOBENABLED != *$job* ]]; then
+		continue;
+	fi
+	LASTRUN=$(echo 'list job='$job | bconsole | grep -e '^|' | sed 1d | grep '| T ' | sed -e 's/|/\t/g' | tail -n 1 | awk ' { print $3" "$4 } ')
 	LASTRUN_UNIX=$(date --date="${LASTRUN}" "+%s")
 	if [ "$(($NOW - $LASTRUN_UNIX))" -gt "$WARN" ]; then
 		if [ "$((${NOW}-${LASTRUN_UNIX}))" -gt "$CRIT" ]; then
